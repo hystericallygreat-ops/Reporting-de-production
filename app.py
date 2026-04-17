@@ -9,11 +9,15 @@ uploaded_file = st.file_uploader("📂 Upload fichier DATA", type=["xlsx"])
 
 if uploaded_file:
 
-    # 📥 Lire les feuilles
-    df = pd.read_excel(uploaded_file, sheet_name="data")
-    mapping = pd.read_excel(uploaded_file, sheet_name=1)
+    # 📥 Charger fichier
+    excel = pd.ExcelFile(uploaded_file)
 
-    # 🧹 Nettoyage colonnes
+    st.write("Feuilles :", excel.sheet_names)
+
+    df = pd.read_excel(excel, sheet_name=excel.sheet_names[0])  # DATA
+    mapping = pd.read_excel(excel, sheet_name="Code")  # FEUILLE CODE
+
+    # 🧹 Nettoyage
     def clean(df):
         df.columns = (
             df.columns
@@ -26,10 +30,13 @@ if uploaded_file:
     df = clean(df)
     mapping = clean(mapping)
 
-    # 🔁 Rename data
+    # 🔍 DEBUG
+    st.write("DATA cols:", df.columns.tolist())
+    st.write("MAPPING cols:", mapping.columns.tolist())
+
+    # 🔁 Rename DATA
     df = df.rename(columns={
         "Agent": "agent",
-        "Log": "log",
         "Ventes nettes": "ventes",
         "Heures Attribution": "heures",
         "Clients nets": "clients",
@@ -41,27 +48,36 @@ if uploaded_file:
     # 🔁 Rename mapping
     mapping = mapping.rename(columns={
         "Agent": "agent_final",
-        "Log1": "log1_name",
-        "Log2": "log2_name"
+        "Log1": "log1",
+        "Log2": "log2"
     })
 
-    # 🔥 CRÉER DICTIONNAIRE DE MAPPING
-    map_dict = {}
+    # 🔥 CRÉER MAPPING NOM + LOG
+    name_map = {}
+    log_map = {}
 
     for _, row in mapping.iterrows():
-        if pd.notna(row["log1_name"]):
-            map_dict[row["log1_name"]] = row["agent_final"]
-        if pd.notna(row["log2_name"]):
-            map_dict[row["log2_name"]] = row["agent_final"]
+
+        final = row["agent_final"]
+
+        if pd.notna(row["log1"]):
+            name_map[row["log1"]] = final
+            log_map[row["log1"]] = "Log1"
+
+        if pd.notna(row["log2"]):
+            name_map[row["log2"]] = final
+            log_map[row["log2"]] = "Log2"
 
     # 🎯 APPLIQUER MAPPING
-    df["agent"] = df["agent"].map(map_dict).fillna(df["agent"])
+    df["log"] = df["agent"].map(log_map)
+    df["agent"] = df["agent"].map(name_map).fillna(df["agent"])
 
-    # 🔍 DEBUG
-    st.write("Agents après mapping :", df["agent"].unique())
+    # 🔍 Vérif
+    st.write("Logs détectés :", df["log"].unique())
 
     df = df.fillna(0)
 
+    # ⚠️ division safe
     def safe_div(a, b):
         return a / b if b != 0 else 0
 
@@ -72,11 +88,17 @@ if uploaded_file:
 
     # 🎯 FILTRE LOG
     st.subheader("🎯 Filtre par Source")
-    selected_log = st.selectbox("Choisir une source", df["log"].dropna().unique())
-    df_filtered = df[df["log"] == selected_log]
+
+    if "log" in df.columns:
+        selected_log = st.selectbox("Choisir une source", df["log"].dropna().unique())
+        df_filtered = df[df["log"] == selected_log]
+    else:
+        st.error("Colonne log non créée")
+        df_filtered = df
 
     # 📊 KPI
     st.subheader("📊 KPI")
+
     col1, col2, col3 = st.columns(3)
 
     col1.metric("Total Ventes", int(df_filtered["ventes"].sum()))
