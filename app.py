@@ -142,6 +142,7 @@ if not uploaded_file:
 
 df_log1, df_log2, df_contacts, df_heures, df_appels = load_data(uploaded_file)
 
+
 # ==============================
 # 🔗 AGRÉGATION
 # ==============================
@@ -161,12 +162,36 @@ df_final = df_final.merge(df_appels.groupby('Agent')[['Appels']].sum(), on='Agen
 
 df_final = df_final.fillna(0)
 
+
 # ==============================
-# 📊 KPI
+# 📊 KPI (corrigé)
 # ==============================
-df_final['Taux_transfo_%'] = (df_final['Clients'] / df_final['Contacts'].replace(0, pd.NA) * 100).round(1)
-df_final['Ventes_par_heure'] = (df_final['Ventes'] / df_final['Heures'].replace(0, pd.NA)).round(2)
-df_final['Rendement_%'] = (df_final['Clients'] / (df_final['Tickets'] + df_final['Appels']).replace(0, pd.NA) * 100).round(1)
+df_final['Taux_transfo_%'] = (
+    (df_final['Clients'] / df_final['Contacts'].replace(0, pd.NA)) * 100
+)
+
+df_final['Ventes_par_heure'] = (
+    df_final['Ventes'] / df_final['Heures'].replace(0, pd.NA)
+)
+
+df_final['Rendement_%'] = (
+    df_final['Clients'] / (df_final['Tickets'] + df_final['Appels']).replace(0, pd.NA) * 100
+)
+
+# 🔒 sécurisation round
+for col in ['Taux_transfo_%', 'Ventes_par_heure', 'Rendement_%']:
+    df_final[col] = pd.to_numeric(df_final[col], errors='coerce').round(1)
+
+
+# ==============================
+# 🚫 FILTRE SOURCE (désactivé volontairement)
+# ==============================
+# st.sidebar.subheader("🔍 Filtres")
+# source_options = ["Toutes les sources", "Log1", "Log2"]
+# source_filter = st.sidebar.selectbox("Source de données", source_options)
+
+df_display = df_final.copy()
+
 
 # ==============================
 # 📈 UI
@@ -175,18 +200,18 @@ st.subheader("📈 KPIs")
 
 col1, col2, col3 = st.columns(3)
 
-col1.metric("Ventes", int(df_final['Ventes'].sum()))
-col2.metric("Clients", int(df_final['Clients'].sum()))
-col3.metric("Agents", df_final['Agent'].nunique())
+col1.metric("Ventes", int(df_display['Ventes'].sum()))
+col2.metric("Clients", int(df_display['Clients'].sum()))
+col3.metric("Agents", df_display['Agent'].nunique())
 
 st.markdown("---")
 
 st.subheader("📊 Ventes par agent")
 
-chart_data = df_final.sort_values("Ventes", ascending=False).head(20)
+chart_data = df_display.sort_values("Ventes", ascending=False).head(20)
 
 fig = px.bar(chart_data, x="Ventes", y="Agent", orientation="h")
 st.plotly_chart(fig, use_container_width=True)
 
 st.subheader("📋 Tableau")
-st.dataframe(df_final, use_container_width=True)
+st.dataframe(df_display, use_container_width=True)
